@@ -1,0 +1,24 @@
+{
+  "name": "vulntrackerbackend",
+  "module": "index.js",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "date-fns": "^4.1.0",
+    "dotenv": "^16.4.6",
+    "express": "^4.21.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^1.4.5-lts.1",
+    "prisma": "^6.0.0",
+    "uuid": "^11.0.3"
+  }
+}

@@ -1,0 +1,75 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RiskLevel {
+  None
+  Low
+  Medium
+  High
+  Critical
+}
+
+model Company {
+  id              String                    @id @default(uuid())
+  name            String                    @unique
+  vulnerabilities Vulnerability[]
+  users           User[]
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+}
+
+model Vulnerability {
+  id              String       @id @default(uuid())
+  assetIp         String
+  assetOS         String?
+  port            Int?
+  protocol        String?
+  title           String
+  cveId           String[]
+  description     String[]
+  riskLevel       RiskLevel
+  cvssScore       Float?
+  impact          String
+  recommendations String
+  references      String[]
+  quarter         String[]
+  isResolved      Boolean      @default(false)
+  uniqueHash      String       @unique
+  companyId       String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id])
+  @@unique([companyId, uniqueHash])
+}
+
+model User {
+  id              String     @id @default(uuid())
+  name            String
+  email           String     @unique
+  password        String
+  role            UserRole   @default(User) // Role-based access control
+  companyId       String?    // Nullable to allow admin users not tied to a specific company
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  company Company? @relation(fields: [companyId], references: [id]) // Relation to the company
+}
+
+enum UserRole {
+  Admin  // Admins can manage everything, including companies and users
+  User   // Regular users, limited access to their company's data
+}
+
