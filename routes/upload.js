@@ -18,44 +18,30 @@ const upload = multer({
   },
 });
 
-// POST route to upload and process CSV files
-router.post(
-  "/",
-  authenticateToken, // Protect the route with JWT authentication
-  upload.single("file"),
-  async (req, res) => {
-    const { quarter, companyName } = req.body;
+/**
+ * Upload and process CSV files
+ */
+router.post("/", authenticateToken, upload.single("file"), async (req, res) => {
+  const { quarter, companyName } = req.body;
+  const filepath = req.file?.path;
 
-    // Ensure required fields are provided
-    if (!quarter || !companyName) {
-      return res.status(400).json({ message: "Quarter and company name are required." });
-    }
-
-    const filepath = req.file?.path;
-
-    if (!filepath) {
-      return res.status(400).json({ message: "No file uploaded." });
-    }
-
-    try {
-      // Import the CSV data
-      await importCsv(filepath, quarter, companyName);
-
-      // Cleanup: Remove the uploaded file after processing
-      await fs.unlink(filepath);
-
-      res.status(200).json({ message: "File processed successfully." });
-    } catch (error) {
-      console.error("Error processing file:", error);
-
-      // Cleanup: Remove the file in case of an error
-      if (filepath) {
-        await fs.unlink(filepath);
-      }
-
-      res.status(500).json({ message: "Error processing file." });
-    }
+  if (!quarter || !companyName) {
+    return res.status(400).json({ message: "Quarter and company name are required." });
   }
-);
+
+  if (!filepath) {
+    return res.status(400).json({ message: "No file uploaded." });
+  }
+
+  try {
+    await importCsv(filepath, quarter, companyName);
+    await fs.unlink(filepath); // Clean up the uploaded file
+    res.status(200).json({ message: "File processed successfully." });
+  } catch (error) {
+    console.error("Error processing file:", error.message);
+    await fs.unlink(filepath); // Cleanup in case of errors
+    res.status(500).json({ message: "Error processing file." });
+  }
+});
 
 export default router;

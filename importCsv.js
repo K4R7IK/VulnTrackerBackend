@@ -14,6 +14,42 @@ function generateHash(companyId, ...fields) {
     .digest("hex");
 }
 
+async function updateSummary(companyId) {
+  // Fetch vulnerabilities for the company
+  const vulnerabilities = await prisma.vulnerability.findMany({
+    where: { companyId },
+  });
+
+  // Summarize vulnerabilities by OS
+  const osSummary = vulnerabilities.reduce((acc, vuln) => {
+    acc[vuln.assetOS] = (acc[vuln.assetOS] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Summarize vulnerabilities by risk
+  const riskSummary = vulnerabilities.reduce((acc, vuln) => {
+    acc[vuln.riskLevel] = (acc[vuln.riskLevel] || 0) + 1;
+    return acc;
+  }, {});
+
+  // Identify devices with the highest vulnerabilities
+  const deviceVulnCount = vulnerabilities.reduce((acc, vuln) => {
+    acc[vuln.assetIp] = (acc[vuln.assetIp] || 0) + 1;
+    return acc;
+  }, {});
+  const topDevices = Object.entries(deviceVulnCount)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([ip, count]) => ({ ip, count }));
+
+  // Save or update the summary in the database
+  await prisma.vulnerabilitySummary.upsert({
+    where: { companyId },
+    update: { osSummary, riskSummary, topDevices },
+    create: { companyId, osSummary, riskSummary, topDevices },
+  });
+}
+
 export async function importCsv(filepath, quarterValue, companyName) {
   try {
     const results = [];
@@ -47,7 +83,6 @@ export async function importCsv(filepath, quarterValue, companyName) {
           companyId,
           row["Host"],
           row["Port"],
-          row["Protocol"],
           row["Name"],
           row["CVE"],
           row["Description"],
@@ -55,7 +90,7 @@ export async function importCsv(filepath, quarterValue, companyName) {
           row["CVSS v2.0 Base Score"],
           row["Synopsis"],
           row["Solution"],
-          row["See Also"]
+          row["See Also"],
         );
 
         if (!csvVulnMap.has(uniqueHash)) {
@@ -66,7 +101,9 @@ export async function importCsv(filepath, quarterValue, companyName) {
             protocol: row["Protocol"] ? row["Protocol"].toUpperCase() : null,
             title: row["Name"],
             cveId: row["CVE"] ? row["CVE"].split(",") : [],
-            description: row["Description"] ? row["Description"].split("\n") : [],
+            description: row["Description"]
+              ? row["Description"].split("\n")
+              : [],
             riskLevel: row["Risk"],
             cvssScore: parseFloat(row["CVSS v2.0 Base Score"]) || 0,
             impact: row["Synopsis"],
@@ -88,7 +125,7 @@ export async function importCsv(filepath, quarterValue, companyName) {
       });
 
       const existingHashes = new Set(
-        existingVulnerabilities.map((v) => v.uniqueHash)
+        existingVulnerabilities.map((v) => v.uniqueHash),
       );
 
       // Update existing vulnerabilities
@@ -97,7 +134,7 @@ export async function importCsv(filepath, quarterValue, companyName) {
         .map((vuln) => {
           const csvVuln = csvVulnMap.get(vuln.uniqueHash);
           const updatedQuarters = Array.from(
-            new Set([...vuln.quarter, ...csvVuln.quarter])
+            new Set([...vuln.quarter, ...csvVuln.quarter]),
           );
 
           csvVulnMap.delete(vuln.uniqueHash); // Remove from CSV map after processing
@@ -116,14 +153,14 @@ export async function importCsv(filepath, quarterValue, companyName) {
 
       // Mark unmatched database records as resolved
       const unmatchedDbRecords = existingVulnerabilities.filter(
-        (vuln) => !csvHashes.includes(vuln.uniqueHash)
+        (vuln) => !csvHashes.includes(vuln.uniqueHash),
       );
 
       const resolvePromises = unmatchedDbRecords.map((vuln) =>
         prisma.vulnerability.update({
           where: { id: vuln.id },
           data: { isResolved: true },
-        })
+        }),
       );
 
       await Promise.all(resolvePromises);
@@ -146,6 +183,13 @@ export async function importCsv(filepath, quarterValue, companyName) {
     console.error("Error importing vulnerabilities:", error);
     throw error;
   } finally {
+    if (companyId) {
+      try {
+        await updateSummary(companyId);
+      } catch (summaryError) {
+        console.error("Error updating summary:", summaryError);
+      }
+    }
     await prisma.$disconnect();
   }
 }

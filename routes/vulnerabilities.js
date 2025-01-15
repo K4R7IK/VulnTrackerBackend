@@ -1,37 +1,24 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { differenceInDays } from "date-fns";
-import authenticateToken from "../middleware/authenticateToken.js"; // JWT Middleware
+import authenticateToken from "../middleware/authenticateToken.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
 
-// Fetch vulnerabilities with filters
+/**
+ * Fetch vulnerabilities with filters and pagination
+ */
 router.get("/", authenticateToken, async (req, res) => {
+  const { page = 1, limit = 50, search = "", companyId, quarter, isResolved, quarterNot } = req.query;
+
+  if (!companyId && req.user.role !== "Admin") {
+    return res.status(403).json({ message: "Access denied. Specify a companyId." });
+  }
+
   try {
-    const {
-      page = 1,
-      limit = 50,
-      search = "",
-      companyId,
-      quarter,
-      isResolved,
-      quarterNot,
-    } = req.query;
-
-    // Validate pagination parameters
-    if (isNaN(page) || page < 1 || isNaN(limit) || limit < 1) {
-      return res.status(400).json({ message: "Invalid pagination parameters." });
-    }
-
-    // Ensure non-admins can only access their company's vulnerabilities
-    if (req.user.role !== "Admin" && req.user.companyId !== companyId) {
-      return res.status(403).json({ message: "Access denied." });
-    }
-
     const skip = (page - 1) * limit;
 
-    // Build the query filters
     const where = {
       ...(search && {
         OR: [
@@ -45,7 +32,6 @@ router.get("/", authenticateToken, async (req, res) => {
       ...(isResolved !== undefined && { isResolved: isResolved === "true" }),
     };
 
-    // Fetch vulnerabilities and total count
     const [vulnerabilities, total] = await Promise.all([
       prisma.vulnerability.findMany({
         where,
@@ -56,21 +42,11 @@ router.get("/", authenticateToken, async (req, res) => {
       prisma.vulnerability.count({ where }),
     ]);
 
-    // Calculate "Age" in days
-    const vulnerabilitiesWithAge = vulnerabilities.map((vuln) => {
-      const currentDate = new Date();
-      const createdDate = new Date(vuln.updatedAt); // Change to `createdAt` if needed
+    const vulnerabilitiesWithAge = vulnerabilities.map((vuln) => ({
+      ...vuln,
+      age: `${differenceInDays(new Date(), new Date(vuln.updatedAt)) + 1} days`,
+    }));
 
-      // Calculate difference in days
-      const ageInDays = differenceInDays(currentDate, createdDate) + 1;
-
-      return {
-        ...vuln,
-        age: `${ageInDays} days`,
-      };
-    });
-
-    // Send response
     res.status(200).json({
       data: vulnerabilitiesWithAge,
       total,
@@ -78,10 +54,9 @@ router.get("/", authenticateToken, async (req, res) => {
       totalPages: Math.ceil(total / limit),
     });
   } catch (error) {
-    console.error("Error fetching vulnerabilities:", error);
+    console.error("Error fetching vulnerabilities:", error.message);
     res.status(500).json({ message: "Error fetching vulnerabilities." });
   }
 });
 
 export default router;
-

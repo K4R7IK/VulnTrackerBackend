@@ -30,7 +30,7 @@ import companiesRoutes from "./routes/companies.js";
 import vulnerabilitiesRoutes from "./routes/vulnerabilities.js";
 import quartersRoutes from "./routes/quarters.js";
 import usersRoutes from "./routes/users.js";
-import companyRoutes from "./routes/company.js";
+import summaryRoutes from "./routes/summary.js";
 
 // Public routes
 app.use("/api/auth", authRoutes);
@@ -39,10 +39,10 @@ app.use("/api/auth", authRoutes);
 app.use(authenticateToken); // All routes below this require authentication
 app.use("/api/upload", uploadRoutes);
 app.use("/api/companies", companiesRoutes);
-app.use("/api/company", companyRoutes);
 app.use("/api/vulnerabilities", vulnerabilitiesRoutes);
 app.use("/api/quarters", quartersRoutes);
 app.use("/api/users", usersRoutes);
+app.use("/api/summary", summaryRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

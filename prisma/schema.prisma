@@ -22,16 +22,17 @@ enum RiskLevel {
 }
 
 model Company {
-  id              String                    @id @default(uuid())
-  name            String                    @unique
-  vulnerabilities Vulnerability[]
-  users           User[]
-  createdAt       DateTime                  @default(now())
-  updatedAt       DateTime                  @updatedAt
+  id                   String                @id @default(uuid())
+  name                 String                @unique
+  vulnerabilities      Vulnerability[]
+  vulnerabilitySummary VulnerabilitySummary?
+  users                User[]
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
 }
 
 model Vulnerability {
-  id              String       @id @default(uuid())
+  id              String    @id @default(uuid())
   assetIp         String
   assetOS         String?
   port            Int?
@@ -44,32 +45,46 @@ model Vulnerability {
   impact          String
   recommendations String
   references      String[]
+  pluginOutput    String?   @default("null")
   quarter         String[]
-  isResolved      Boolean      @default(false)
-  uniqueHash      String       @unique
+  isResolved      Boolean   @default(false)
+  uniqueHash      String    @unique
   companyId       String
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   company Company @relation(fields: [companyId], references: [id])
+
   @@unique([companyId, uniqueHash])
 }
 
+model VulnerabilitySummary {
+  id              String   @id @default(uuid())
+  companyId       String   @unique
+  osSummary       Json // JSON object with vulnerabilities by OS
+  riskSummary     Json // JSON object with vulnerabilities by risk
+  topDevices      Json // JSON array of devices with the highest vulnerabilities
+  resolvedCount   Int
+  unresolvedCount Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  company         Company  @relation(fields: [companyId], references: [id])
+}
+
 model User {
-  id              String     @id @default(uuid())
-  name            String
-  email           String     @unique
-  password        String
-  role            UserRole   @default(User) // Role-based access control
-  companyId       String?    // Nullable to allow admin users not tied to a specific company
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(User) // Role-based access control
+  companyId String? // Nullable to allow admin users not tied to a specific company
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   company Company? @relation(fields: [companyId], references: [id]) // Relation to the company
 }
 
 enum UserRole {
-  Admin  // Admins can manage everything, including companies and users
-  User   // Regular users, limited access to their company's data
+  Admin // Admins can manage everything, including companies and users
+  User // Regular users, limited access to their company's data
 }
-
